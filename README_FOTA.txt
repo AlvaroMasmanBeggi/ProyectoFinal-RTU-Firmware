@@ -25,6 +25,10 @@ Para iniciar el servidor sin firmware y responder NONE mientras se prepara una a
 
 	python .\py_files\servidor_tls_json.py
 
+Para verificar la version del .bin ejecutar:
+
+ 	python -m esptool --chip esp32 image-info .\build\ProyectoFinal-RTU.bin
+
 Si ya estás dentro de la carpeta py_files, puedes ejecutar `python .\servidor_tls_json.py`.
 El servidor abre la interfaz de control local en http://127.0.0.1:8080. Desde allí se selecciona
 el archivo .bin y se escribe su versión. No es necesario detener ni volver a iniciar el servidor:
