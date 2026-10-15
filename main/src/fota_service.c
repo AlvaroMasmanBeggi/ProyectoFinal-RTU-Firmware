@@ -19,17 +19,12 @@
 
 static const char *TAG = "FOTA_SERVICE";
 
-/* Activar en 1 para validar el certificado del servidor mediante ota_server_ca.pem */
-#define FOTA_VERIFY_TLS_SERVER  0
-
 #define FOTA_MAX_IMAGE_SIZE     (1024 * 1024)   // 1 MB límite por imagen
 #define FOTA_LINE_SIZE          192
 #define FOTA_CHUNK_BUF_SIZE     1024
 
-#if FOTA_VERIFY_TLS_SERVER
 extern const uint8_t ota_server_ca_pem_start[] asm("_binary_ota_server_ca_pem_start");
 extern const uint8_t ota_server_ca_pem_end[]   asm("_binary_ota_server_ca_pem_end");
-#endif
 
 static TaskHandle_t s_tls_task_handle = NULL;
 
@@ -228,13 +223,10 @@ static void tls_client_task(void *pvParameters){
 
         esp_tls_cfg_t cfg = {
             .timeout_ms = 10000,
-        #if FOTA_VERIFY_TLS_SERVER
             .cacert_buf = ota_server_ca_pem_start,
             .cacert_bytes = ota_server_ca_pem_end - ota_server_ca_pem_start,
-            .skip_common_name = false,
-        #else
+            // El certificado de prueba está emitido para localhost y la RTU conecta por IP.
             .skip_common_name = true,
-        #endif
         };
 
         esp_tls_t *tls = esp_tls_init();

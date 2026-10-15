@@ -21,12 +21,22 @@ Con esta sentencia compilo el nuevo firmware desde ESP IDF:
 
 	idf.py -B build_fota build
 
-Con esta sentencia desde el shell abro el servidor pero le paso el firmware a enviar: 
+Para iniciar el servidor sin firmware y responder NONE mientras se prepara una actualización:
 
-	python servidor_tls_json.py --firmware build_fota\hello_world.bin --version 1.0.1
+	python .\py_files\servidor_tls_json.py
 
-La versión debe coincidir con la embebida en el binario; hay que incrementarla en project(... VERSION ...) para cada publicación.Esto esta en el CMake.
-El servidor entrega el firmware cuando la ESP32 se conecta y reporta una versión distinta.
+Si ya estás dentro de la carpeta py_files, puedes ejecutar `python .\servidor_tls_json.py`.
+El servidor abre la interfaz de control local en http://127.0.0.1:8080. Desde allí se selecciona
+el archivo .bin y se escribe su versión. No es necesario detener ni volver a iniciar el servidor:
+la imagen se carga en memoria y se ofrece en el siguiente mensaje de telemetría de la RTU.
+Si la versión reportada por la RTU coincide con la publicada, el servidor responde NONE.
+La versión introducida debe coincidir con la embebida en el binario.
+
+También se puede iniciar el servidor publicando una imagen desde la línea de comandos:
+
+	python .\py_files\servidor_tls_json.py --firmware .\build_fota\hello_world.bin --version 1.0.1
+
+La interfaz se liga únicamente a 127.0.0.1, así que solo se puede administrar desde la misma PC.
 
 1. QUE HACE LA IMPLEMENTACIÓN FOTA?
 
@@ -81,6 +91,8 @@ En servidor_tls_json.py el servidor ahora:
 
 * Puede cargar una imagen .bin con --firmware, calcular su SHA‑256 y anunciarla con --version.
 
+* Incluye una interfaz web local en http://127.0.0.1:8080 para publicar o retirar firmware sin reiniciar el servidor.
+
 * Espera una confirmación OK <version> después de enviarla.
 
 * Usa TLS 1.2 como mínimo y conserva el uso de server.crt y server.key.
@@ -103,17 +115,23 @@ el que está ejecutándose. Por eso se agregó partitions.csv con:
 
 * También se habilitó el rollback y la optimización por tamaño en sdkconfig. Ojo con los tamaños de los .bin y el espacio free en las particiones.
 
-* La versión del proyecto está en CMakeLists.txt. Esa versión queda embebida en el firmware; la ESP32 se la informa al servidor y la compara 
-con la cabecera OTA. Hay que cambiarla para cada versión que se publique.
+* La versión incluida en el firmware se puede consultar con esptool (`image-info`). La RTU la informa al servidor y la compara con la versión
+anunciada en la cabecera OTA; ambas deben coincidir con la versión real del binario.
 
-Para las pruebas, FOTA_VERIFY_TLS_SERVER está en 0, es decir, no verifica la autenticidad del servidor. TLS cifra la comunicación, pero en esta 
-configuración la ESP32 no verifica que el servidor sea realmente el esperado. El certificado actual queda embebido como plantilla 
-en ota_server_ca.pem, listo para sustituirlo y habilitar la comprobación más adelante. Para que funcione ota_server_ca.pem es exactamente el mismo
-que server.crt que es el certificado del servidor. Hay que implementar también Secure Boot.
+La ESP32 valida el certificado TLS del servidor usando `certs/ota_server_ca.pem`, que debe coincidir con el certificado configurado en
+`py_files/server.crt`. El certificado de prueba está emitido para `localhost`, mientras que la RTU se conecta a una dirección IP; por eso se
+omite la comparación del nombre del host y se fija como confiable ese certificado concreto. Para producción, instala un certificado emitido para
+el nombre DNS/IP del servidor y habilita su verificación de nombre. SHA-256 valida la integridad de la imagen, pero no sustituye una firma de
+firmware ni Secure Boot.
 
-PARA SUBIR UN NUEVO FIRMWARE A DISTANCIA:
-1- En el CmakeList.txt cambiamos la versión a una mas nueva, si dice 1.0.1 pongo 1.0.2
-2- Compilo idf.py -B build_fota build
-3- Si quiero ver informacion sobre la compilacion para por ejemplo chequear la version uso: 
+PARA PROBAR UNA ACTUALIZACIÓN SIN REINICIAR EL SERVIDOR:
+1- Compilo el firmware con la versión que quiero probar.
+2- Verifico la versión incluida en el binario con:
 	python -m esptool --chip esp32 image-info build_fota\hello_world.bin
-4- Arranco el server con un firmaware para enviar con: python servidor_tls_json.py --firmware build_fota\hello_world.bin --version 1.0.2
+3- Inicio una sola vez el servidor con python .\py_files\servidor_tls_json.py.
+4- Abro http://127.0.0.1:8080, selecciono el .bin, escribo la versión que muestra image-info y publico.
+5- La RTU actualiza si su firmware_version es distinta; si es igual, el servidor responde NONE.
+6- Para volver al modo sin actualización, pulso “Retirar firmware y responder NONE”.
+
+El servidor atiende cada conexión TLS en su propio hilo y limita a 10 segundos el handshake. Si ya había una instancia
+anterior ejecutándose antes de esta mejora, hay que detenerla con Ctrl+C e iniciarla de nuevo para cargar el cambio.

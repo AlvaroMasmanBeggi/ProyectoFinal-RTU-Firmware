@@ -6,6 +6,8 @@ idf_component_register(
         "src/web_portal.c"
         "src/fota_service.c"
         "src/uart_console.c"
+    EMBED_TXTFILES
+        "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
         "include"
     REQUIRES
@@ -19,6 +21,4 @@ idf_component_register(
         mbedtls
         driver
         esp_driver_uart
-    # EMBED_TXTFILES
-    #    "../certs/ota_server_ca.pem"  # Descomentar al activar FOTA_VERIFY_TLS_SERVER
 )
