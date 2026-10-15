@@ -1,0 +1,26 @@
+[
+  {
+    "label": "ESP32 Debug (esp32s3)",
+    "adapter": "GDB",
+    "request": "launch",
+    "program": "build/ProyectoFinal-RTU.elf",
+    "miDebuggerPath": "xtensa-esp32s3-elf-gdb",
+    "setupCommands": [
+      {
+        "text": "target extended-remote :3333"
+      },
+      {
+        "text": "set mem inaccessible-by-default off"
+      },
+      {
+        "text": "mon reset halt"
+      },
+      {
+        "text": "thbreak app_main"
+      },
+      {
+        "text": "continue"
+      }
+    ]
+  }
+]

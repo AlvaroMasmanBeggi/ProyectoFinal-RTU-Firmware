@@ -1,0 +1,44 @@
+[
+  {
+    "label": "ESP32 (esp32s3): Compilar Proyecto",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat >nul 2>&1 && idf.py build\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32 (esp32s3): Flashear",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat >nul 2>&1 && idf.py flash\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32: Monitor Serie",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat && idf.py monitor\"",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32: Flashear y Monitorear",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat && idf.py flash monitor\"",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32: Configurar SDK (menuconfig)",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat && idf.py menuconfig\"",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32: Iniciar Servidor Debug (OpenOCD)",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat && idf.py openocd\"",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "ESP32: Limpiar Proyecto (Clean)",
+    "command": "cmd /c \"C:\\esp\\v6.1\\esp-idf\\export.bat >nul 2>&1 && idf.py fullclean\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]

@@ -1,6 +1,0 @@
--Wno-frame-address
--mlongcalls
--fno-builtin-memcpy
--fno-builtin-memset
--fno-builtin-bzero
-"-specs=C:/Users/masma/Documents/UTN/PROYECTO FINAL/FOTA/build_fota/specs/picolibc.specs"

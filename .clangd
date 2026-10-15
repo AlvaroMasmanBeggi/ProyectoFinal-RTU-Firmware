@@ -1,0 +1,16 @@
+CompileFlags:
+  Remove:
+    - -mdisable-hardware-atomics
+    - -fno-tree-switch-conversion
+    - -fzero-init-padding-bits=all
+    - -fno-shrink-wrap
+    - -fno-malloc-dce
+    - -fstrict-volatile-bitfields
+    - -mfix-esp32-psram-cache-issue
+    - -mlongcalls
+  Add:
+    - -Wno-unknown-argument
+    - -Wno-unknown-warning-option
+
+Diagnostics:
+  UnusedIncludes: None

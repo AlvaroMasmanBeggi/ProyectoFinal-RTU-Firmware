@@ -1,0 +1,15 @@
+{
+  "lsp": {
+    "clangd": {
+      "binary": {
+        "arguments": [
+          "--query-driver=*",
+          "--header-insertion=never"
+        ]
+      },
+      "initialization_options": {
+        "compilationDatabaseDirectory": "build"
+      }
+    }
+  }
+}
