@@ -10,8 +10,8 @@ static const char *TAG = "RTU_MAIN";
 void app_main(void){
     ESP_LOGI(TAG, "=== Iniciando RTU AgroConnect ===\n");
 
-    
-    ESP_LOGI(TAG, "=== ESTE FIRMWARE LO SUBI CON FOTA ===\n");
+
+    ESP_LOGI(TAG, "=== ESTE FIRMWARE LO SUBI CON FOTA POR SEGUNDA VEZ ===\n");
 
     // 1. Inicializar la memoria no volátil (NVS)
     ESP_ERROR_CHECK(app_config_init_nvs());
