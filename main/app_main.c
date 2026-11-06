@@ -4,6 +4,7 @@
 #include "wifi_manager.h"
 #include "fota_service.h"
 #include "uart_console.h"
+#include "gpio_defs.h"
 
 static const char *TAG = "RTU_MAIN";
 
