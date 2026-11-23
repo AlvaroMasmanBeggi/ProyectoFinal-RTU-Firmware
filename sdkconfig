@@ -1,6 +1,6 @@
 #
 # Automatically generated file. DO NOT EDIT.
-# Espressif IoT Development Framework (ESP-IDF) 6.1.0 Project Configuration
+# Espressif IoT Development Framework (ESP-IDF) 6.1.1 Project Configuration
 #
 # default:
 CONFIG_SOC_CAPS_ECO_VER_MAX=301
@@ -1138,6 +1138,8 @@ CONFIG_SPI_SLAVE_ISR_IN_IRAM=y
 #
 # default:
 # CONFIG_UHCI_ISR_HANDLER_IN_IRAM is not set
+# default:
+# CONFIG_UHCI_RECV_FUNC_IN_IRAM is not set
 # default:
 # CONFIG_UHCI_ISR_CACHE_SAFE is not set
 # default:
@@ -3090,6 +3092,14 @@ CONFIG_MBEDTLS_HARDWARE_SHA=y
 CONFIG_MBEDTLS_HARDWARE_MPI=y
 # default:
 CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI=y
+
+#
+# Security hardening
+#
+# default:
+# CONFIG_MBEDTLS_CONSTANT_TIME_PRIME_GEN is not set
+# end of Security hardening
+
 # default:
 CONFIG_MBEDTLS_HARDWARE_AES=y
 # default:
@@ -3203,6 +3213,8 @@ CONFIG_PTHREAD_TASK_NAME_DEFAULT="pthread"
 #
 # default:
 CONFIG_SD_ENABLE_SDIO_SUPPORT=y
+# default:
+CONFIG_SD_READY_POLL_PERIOD_START_US=100
 # end of SD Protocol Layer Configuration
 
 #
