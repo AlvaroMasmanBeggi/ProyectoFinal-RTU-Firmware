@@ -1,4 +1,9 @@
 #include <stdio.h>
+#include <esp_err.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
+
 #include "esp_log.h"
 #include "app_config.h"
 #include "wifi_manager.h"
@@ -6,11 +11,36 @@
 #include "uart_console.h"
 #include "gpio_defs.h"
 
+#include "BQ25628.h"
+
 static const char *TAG = "RTU_MAIN";
 
-void app_main(void){
-    ESP_LOGI(TAG, "=== Iniciando RTU AgroConnect ===\n");
+// Declaracion de mutex/semaforos
+SemaphoreHandle_t I2C1_Mutex = NULL;
 
+// Declaracion de dispositivos
+i2c_master_dev_handle_t BQ25628_dev = NULL;
+
+// Declaracion de manejadores
+i2c_master_bus_handle_t I2C1_Handler;
+i2c_master_bus_config_t I2C1_bus_cfg = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = I2C1_MASTER_PORT,
+        .scl_io_num = I2C1_SCL_PIN,
+        .sda_io_num = I2C1_SDA_PIN,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = false,
+    };
+
+void app_main(void){
+	ESP_LOGI(TAG, "=== Iniciando RTU AgroConnect ===\n");
+
+	// Creacion de mutex/semaforos
+	I2C1_Mutex = xSemaphoreCreateMutex();
+
+	// Inicializar bus I2C1 maestro y periféricos asociados
+    ESP_ERROR_CHECK(i2c_new_master_bus(&I2C1_bus_cfg, &I2C1_Handler));
+    ESP_ERROR_CHECK(bq25628_init(I2C1_Handler));
 
     ESP_LOGI(TAG, "=== ESTE FIRMWARE LO SUBI CON FOTA POR SEGUNDA VEZ ===\n");
 

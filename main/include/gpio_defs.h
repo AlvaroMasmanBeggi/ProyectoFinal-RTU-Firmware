@@ -2,10 +2,12 @@
 #define GPIO_DEFS_H
 
 // Interfaz I2C1 //
+#define I2C1_MASTER_PORT I2C_NUM_1
 #define I2C1_SCL_PIN 1
 #define I2C1_SDA_PIN 2
 
 // Interfaz I2C2 //
+#define I2C2_MASTER_PORT I2C_NUM_2
 #define I2C2_SCL_PIN 17
 #define I2C2_SDA_PIN 18
 

@@ -10,6 +10,7 @@ idf_component_register(
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
         "include"
+        "include/Drivers"
     REQUIRES
         nvs_flash
         esp_wifi
@@ -21,4 +22,5 @@ idf_component_register(
         mbedtls
         driver
         esp_driver_uart
+        esp_driver_i2c
 )
