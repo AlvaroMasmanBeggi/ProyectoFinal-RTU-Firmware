@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_tls.h"
+#include "esp_wifi.h"
 #include "esp_ota_ops.h"
 #include "esp_app_desc.h"
 #include "esp_partition.h"
@@ -211,6 +212,7 @@ static bool recibir_actualizacion_firmware(esp_tls_t *tls, const char *line){
 
 static void tls_client_task(void *pvParameters){
     char payload[192];
+    char device_id[19];
     const esp_app_desc_t *app = esp_app_get_description();
 
     for (;;) {
@@ -220,6 +222,17 @@ static void tls_client_task(void *pvParameters){
             vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
+
+        uint8_t mac[6];
+        esp_err_t mac_err = esp_wifi_get_mac(WIFI_IF_STA, mac);
+        if (mac_err != ESP_OK) {
+            ESP_LOGE(TAG, "No se pudo obtener el MAC para identificar el dispositivo: %s",
+                     esp_err_to_name(mac_err));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+        snprintf(device_id, sizeof(device_id), "ESP32-%02X%02X%02X%02X%02X%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
         esp_tls_cfg_t cfg = {
             .timeout_ms = 10000,
@@ -244,9 +257,8 @@ static void tls_client_task(void *pvParameters){
 
             while (true) {
                 int length = snprintf(payload, sizeof(payload),
-                    "{\"sensor_id\":\"SENS-01\",\"fecha\":\"2026-10-15\","
-                    "\"hora\":\"12:00:00\",\"firmware_version\":\"%s\"}\n",
-                    app->version);
+                    "{\"sensor_id\":\"%s\",\"firmware_version\":\"%s\"}\n",
+                    device_id, app->version);
 
                 if (length <= 0 || (size_t)length >= sizeof(payload) ||
                     !tls_send_all(tls, payload, (size_t)length)) {

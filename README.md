@@ -16,9 +16,10 @@ El sistema incorpora conectividad segura TLS, gestión dinámica de red mediante
 * **Consola de Comandos UART:** Tarea en segundo plano sobre UART0 (115200 bps) para invocar el modo de configuración mediante el comando `"config"`.
 * **Telemetría y FOTA Seguro (TLS):** 
   * Conexión saliente cliente TLS hacia el servidor central (apto para redes detrás de NAT o firewalls).
-  * Envío periódico de telemetría en formato JSON con la versión activa de la aplicación.
+  * Envío periódico de telemetría en formato JSON con identificador MAC y versión activa; el servidor muestra estos reportes en la consola sin persistirlos.
   * Descarga y flasheo de firmware en streaming (bloques de 1 KiB) con cálculo y comprobación de hash **SHA-256** al vuelo mediante aceleración criptográfica PSA Crypto.
   * Esquema **Dual-OTA con Rollback automático**: si un firmware nuevo no inicializa correctamente, el bootloader revierte de forma autónoma al slot previo funcional.
+* **Publicación de firmware:** la interfaz local recibe únicamente el `.bin`, extrae su versión desde el descriptor ESP-IDF y la publica sin depender de GitHub.
 
 ---
 
