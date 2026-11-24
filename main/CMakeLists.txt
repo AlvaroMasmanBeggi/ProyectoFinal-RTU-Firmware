@@ -6,6 +6,7 @@ idf_component_register(
         "src/web_portal.c"
         "src/fota_service.c"
         "src/uart_console.c"
+        "src/Drivers/BQ25628.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS

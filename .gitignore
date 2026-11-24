@@ -6,3 +6,4 @@ build/
 sdkconfig.old
 sdkconfig.ci
 .cache/
+.zed/
