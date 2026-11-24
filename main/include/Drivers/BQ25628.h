@@ -13,7 +13,7 @@
 
 #define BQ25628_CHARGE_ILIM			0x02
 #define BQ25628_CHARGE_VLIM			0x04
-#define BQ25628_INPUT_ILIM			0x06
+#define BQ25628_INPUT_ILIM			0x06 		// No se usa ya que la corriente maxima de entrada se define con resistencia conectada a ILIM
 #define BQ25628_INPUT_VLIM			0x08
 #define BQ25628_VOTG_REG			0x0C
 #define BQ25628_MIN_VSYS			0x0E
@@ -25,7 +25,7 @@
 #define BQ25628_CHARGER_CTRL1		0x17
 #define BQ25628_CHARGER_CTRL2		0x18
 #define BQ25628_CHARGER_CTRL3		0x19
-#define BQ25628_NTC_CTRL0			0x1A
+#define BQ25628_NTC_CTRL0			0x1A		// Se mantienen los valores POR
 #define BQ25628_NTC_CTRL1			0x1B
 #define BQ25628_NTC_CTRL2			0x1C
 
@@ -61,12 +61,24 @@
 #define BQ25628_I2C_ADDR        0x6A	    // Dirección I2C de 7 bits
 #define BQ25628_I2C_SPEED_HZ    400000  	// 400 kHz
 
-#define USE_MUTEX 0							// Colocar en 1 para habilitar mutex en lecturas/escrituras I2C
+#define USE_MUTEX 1							// Colocar en 1 para habilitar mutex en lecturas/escrituras I2C
 #define MUTEX_TIMEOUT 100					// Tiempo en milisegundos que debe pasar para ignorar la toma del mutex
 #define I2C_TIMEOUT 100						// Tiempo en milisegundos que debe pasar para indicar fallo en transaccion I2C
 
 extern SemaphoreHandle_t I2C1_Mutex;
 extern i2c_master_dev_handle_t BQ25628_dev;
+
+// Estructura de configuracion
+
+typedef struct {
+	uint16_t charge_current_ma;     // Corriente de carga en mA (40 a 2000)
+	uint16_t charge_voltage_mv;     // Voltaje límite de carga en mV (3500 a 4800)
+	uint16_t input_voltage_mv;		// Voltaje minimo de entrada en mV (3800 a 16800)
+	uint16_t min_sys_voltage_mv;	// Voltaje minimo de salida en mV (2560 a 3840)
+	uint16_t precharge_current_ma;	// Corriente de pre-carga en mA (10 a 310)
+	uint16_t term_current_ma;		// Corriente de terminacion en mA (5 a 310)
+
+} bq25628_config_t;
 
 // Definicion de funciones
 
@@ -113,7 +125,7 @@ esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len);
  */
 esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len);
 
-
+esp_err_t bq25628_config(bq25628_config_t *config);
 
 
 
