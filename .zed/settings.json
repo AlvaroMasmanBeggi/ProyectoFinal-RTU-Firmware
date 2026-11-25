@@ -3,7 +3,7 @@
     "clangd": {
       "binary": {
         "arguments": [
-          "--query-driver=C:/esp/tools/**/*gcc.exe"
+          "--query-driver=C:/Users/*/.espressif/tools/**/*gcc.exe,C:/esp/tools/**/*gcc.exe"
         ]
       },
       "initialization_options": {

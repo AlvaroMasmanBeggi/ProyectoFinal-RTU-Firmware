@@ -1,8 +1,19 @@
 #include "BQ25628.h"
+#include "freertos/idf_additions.h"
+#include <stdint.h>
+
+SemaphoreHandle_t bq25628_adc_sem = NULL;
 
 esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle){
 	if (bus_handle == NULL) return ESP_ERR_INVALID_ARG;
     if (BQ25628_dev != NULL) return ESP_ERR_INVALID_STATE;
+
+    if (bq25628_adc_sem == NULL) {
+        bq25628_adc_sem = xSemaphoreCreateBinary();
+        if (bq25628_adc_sem == NULL) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -237,11 +248,143 @@ esp_err_t bq25628_config(bq25628_config_t *config){
 
     /* --- ADC Control --- */
 
-    // ADC_EN=0 (disparo manual), ADC_RATE=1 (One-shot), ADC_SAMPLE=10,ADC_AVG=0, ADC_AVG_INIT=0, RESERVED=00
-    reg_bytes[0] = (0U << 7U) | (1U << 6U) | (1U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (0U << 0U);
+    // ADC_EN=0 (disparo manual), ADC_RATE=1 (One-shot), ADC_SAMPLE=00,ADC_AVG=0, ADC_AVG_INIT=0, RESERVED=00
+    reg_bytes[0] = (0U << 7U) | (1U << 6U) | (0U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (0U << 0U);
 
     ret = bq25628_i2c_write(BQ25628_ADC_CTRL, reg_bytes, 1);
     if (ret != ESP_OK) return ret;
 
+    /* --- ADC Function --- */
+
+    // Desactivar la lectura de VPMID
+    reg_bytes[0] = (0U << 7U) | (0U << 6U) | (0U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (1U << 0U);
+
+    ret = bq25628_i2c_write(BQ25628_ADC_FUNCTION, reg_bytes, 1);
+    if (ret != ESP_OK) return ret;
+
+
     return ESP_OK;
+}
+
+esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data){
+	if (adc_data == NULL) return ESP_ERR_INVALID_ARG;
+
+    xSemaphoreTake(bq25628_adc_sem, 0);	// Limpia cualquier disparo previo pendiente en el semáforo
+
+	uint8_t reg_data;
+	reg_data = (1U << 7U) | (1U << 6U) | (0U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (0U << 0U);
+
+	esp_err_t ret = bq25628_i2c_write(BQ25628_ADC_CTRL, &reg_data, 1);
+    if (ret != ESP_OK) return ret;
+
+    // Bloquea la tarea hasta que la rutina de interrupcion notifique el fin de conversión
+    if (xSemaphoreTake(bq25628_adc_sem, pdMS_TO_TICKS(300)) != pdTRUE) return ESP_ERR_TIMEOUT;
+
+    /* --- Input Bus Current (IBUS_ADC) --- */
+
+    uint8_t reg_bytes[2];
+
+    ret = bq25628_i2c_read(BQ25628_ADC_IBUS, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (complemento a 2)
+    int16_t ibus_raw = (int16_t)(((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0]);
+
+    // Alineación de bits [15:1] (bit 0 es RESERVED) y conversión a mA (2 mA/LSB)
+    int16_t ibus_code = ibus_raw >> 1;
+    adc_data->ibus_ma = ibus_code * 2;
+    if (adc_data->ibus_ma < 0) adc_data->ibus_ma = 0;
+
+    /* --- Battery Current (IBAT_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_IBAT, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (complemento a 2)
+    uint16_t ibat_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Solo guarda si no hubo error por cambio de polaridad durante la conversión (0x8000)
+    if (ibat_raw != 0x8000U) {
+        // Alineación de bits [15:2] (bits 1:0 son RESERVED) y conversión a mA (4 mA/LSB)
+        int16_t ibat_code = (int16_t)ibat_raw >> 2;
+        adc_data->ibat_ma = ibat_code * 4;
+    }
+
+    /* --- Input Bus Voltage (VBUS_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_VBUS, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (valor sin signo)
+    uint16_t vbus_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Alineación de bits [14:2] (bit 15 y bits 1:0 son RESERVED) y conversión a V (3.97 mV/LSB)
+    uint16_t vbus_code = (vbus_raw & 0x7FFCU) >> 2U;
+    adc_data->vbus_v = (float)vbus_code * 0.00397f;
+
+    /* --- Battery Voltage (VBAT_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_VBAT, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (valor sin signo)
+    uint16_t vbat_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Alineación de bits [12:1] (bits 15:13 y bit 0 son RESERVED) y conversión a V (1.99 mV/LSB)
+    uint16_t vbat_code = (vbat_raw & 0x1FFEU) >> 1U;
+    adc_data->vbat_v = (float)vbat_code * 0.00199f;
+
+    /* --- System Voltage (VSYS_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_VSYS, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (valor sin signo)
+    uint16_t vsys_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Alineación de bits [12:1] (bits 15:13 y bit 0 son RESERVED) y conversión a V (1.99 mV/LSB)
+    uint16_t vsys_code = (vsys_raw & 0x1FFEU) >> 1U;
+    adc_data->vsys_v = (float)vsys_code * 0.00199f;
+
+    /* --- Battery Temperature (TS_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_TS, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian (valor sin signo)
+    uint16_t ts_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Alineación de bits [12:1] y conversión a relación V_TS / V_TS_BIAS (0.0961 % / LSB)
+    uint16_t ts_code = (ts_raw & 0x1FFEU) >> 1U;
+    float ts_ratio = (float)ts_code * 0.000961f;
+
+    // Despeje de R_NTC para red estándar TI: RT1 = 5.23 kOhm, RT2 = 30.1 kOhm
+    if (ts_ratio > 0.05f && ts_ratio < 0.845f) {
+        float r_bottom = (ts_ratio * 5230.0f) / (1.0f - ts_ratio);
+        float r_ntc = (30100.0f * r_bottom) / (30100.0f - r_bottom);
+
+        // Ecuación Beta para NTC 103AT-2 (R0 = 10 kOhm a 25 °C, Beta = 3435 K)
+        float inv_t = (1.0f / 298.15f) + (1.0f / 3435.0f) * logf(r_ntc / 10000.0f);
+        float temp_c = (1.0f / inv_t) - 273.15f;
+
+        // Conversión a décimas de °C con redondeo al entero más cercano
+        float temp_scaled = temp_c * 10.0f;
+        adc_data->ts_temp_c = (temp_scaled >= 0.0f) ? (int16_t)(temp_scaled + 0.5f) : (int16_t)(temp_scaled - 0.5f);
+    } else adc_data->ts_temp_c = INT16_MIN;    // Falla de sensor: NTC abierto o en cortocircuito
+
+    /* --- IC Die Temperature (TDIE_ADC) --- */
+
+    ret = bq25628_i2c_read(BQ25628_ADC_TDIE, reg_bytes, sizeof(reg_bytes));
+    if (ret != ESP_OK) return ret;
+
+    // Desempaquetado de 2 bytes Little-Endian
+    uint16_t tdie_raw = ((uint16_t)reg_bytes[1] << 8U) | reg_bytes[0];
+
+    // Extensión de signo de 12 bits [11:0] (bits 15:12 son RESERVED)
+    int16_t tdie_code = (int16_t)((tdie_raw & 0x0FFFU) << 4U) >> 4;
+
+    // Conversión a décimas de °C (0.5 °C/LSB = 5 décimas de °C/LSB)
+    adc_data->tdie_temp_c = tdie_code * 5;
+
+	return ESP_OK;
 }

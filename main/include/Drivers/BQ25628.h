@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <esp_err.h>
 #include <string.h>
+#include <math.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
@@ -47,7 +48,7 @@
 #define BQ25628_ADC_IBUS			0x28
 #define BQ25628_ADC_IBAT			0x2A
 #define BQ25628_ADC_VBUS			0x2C
-#define BQ25628_ADC_VPMID			0x2E
+#define BQ25628_ADC_VPMID			0x2E		// No se usa
 #define BQ25628_ADC_VBAT			0x30
 #define BQ25628_ADC_VSYS			0x32
 #define BQ25628_ADC_TS				0x34
@@ -66,6 +67,7 @@
 #define I2C_TIMEOUT 100						// Tiempo en milisegundos que debe pasar para indicar fallo en transaccion I2C
 
 extern SemaphoreHandle_t I2C1_Mutex;
+extern SemaphoreHandle_t bq25628_adc_sem;
 extern i2c_master_dev_handle_t BQ25628_dev;
 
 // Estructura de configuracion
@@ -80,6 +82,16 @@ typedef struct {
 
 } bq25628_config_t;
 
+typedef struct {
+	int16_t ibus_ma;        		// Corriente de entrada VBUS (mA)
+	int16_t ibat_ma;        		// Corriente de batería (mA): (+) carga, (-) descarga
+	float vbus_v;       			// Tensión de entrada VBUS (V)
+	float vbat_v;       			// Tensión de batería VBAT (V)
+	float vsys_v;         			// Tensión del riel del sistema VSYS (V)
+	int16_t ts_temp_c;      		// Temperatura de batería (°C)
+	int16_t tdie_temp_c;    		// Temperatura interna del integrado (°C)
+} bq25628_adc_data_t;
+
 // Definicion de funciones
 
 /**
@@ -91,6 +103,7 @@ typedef struct {
  *      - ESP_OK: Dispositivo registrado y listo para operar.
  *      - ESP_ERR_INVALID_ARG: El handle del bus I2C es NULL.
  *      - ESP_ERR_INVALID_STATE: El driver ya había sido inicializado previamente.
+ *		- ESP_ERR_NO_MEM: no hay memoria suficiente para crear el semaforo
  *      - Otros códigos de error propios de i2c_master_bus_add_device().
  */
 esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle);
@@ -139,10 +152,19 @@ esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len);
  */
 esp_err_t bq25628_config(bq25628_config_t *config);
 
-
-
-
-
+/**
+ * @brief Ejecuta una adquisición en modo one-shot del ADC interno y lee los canales habilitados.
+ *
+ * @param[out] adc_data Puntero a la estructura donde se almacenarán las mediciones convertidas.
+ *
+ * @return
+ *      - ESP_OK: Conversión finalizada y canales leídos correctamente.
+ *      - ESP_ERR_INVALID_ARG: El puntero adc_data es NULL.
+ *      - ESP_ERR_INVALID_STATE: El semáforo bq25628_adc_sem no fue inicializado.
+ *      - ESP_ERR_TIMEOUT: Se agotó el tiempo de espera de conversion o por el mutex del bus I2C.
+ *      - Otros códigos de error propios de bq25628_i2c_write() / bq25628_i2c_read().
+ */
+esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data);
 
 
 
