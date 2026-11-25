@@ -26,8 +26,8 @@
 #define BQ25628_CHARGER_CTRL2		0x18
 #define BQ25628_CHARGER_CTRL3		0x19
 #define BQ25628_NTC_CTRL0			0x1A		// Se mantienen los valores POR
-#define BQ25628_NTC_CTRL1			0x1B
-#define BQ25628_NTC_CTRL2			0x1C
+#define BQ25628_NTC_CTRL1			0x1B		// Se mantienen los valores POR
+#define BQ25628_NTC_CTRL2			0x1C		// Se mantienen los valores POR
 
 #define BQ25628_CHARGER_STAT0		0x1D
 #define BQ25628_CHARGER_STAT1		0x1E
@@ -38,11 +38,11 @@
 #define BQ25628_FAULT_FLAG			0x22
 
 #define BQ25628_CHARGER_MASK0		0x23
-#define BQ25628_CHARGER_MASK1		0x24
+#define BQ25628_CHARGER_MASK1		0x24		// Se mantienen los valores POR
 #define BQ25628_FAULT_MASK			0x25
 
 #define BQ25628_ADC_CTRL			0x26
-#define BQ25628_ADC_FUNCTION		0x27
+#define BQ25628_ADC_FUNCTION		0x27		// Se mantienen los valores POR
 
 #define BQ25628_ADC_IBUS			0x28
 #define BQ25628_ADC_IBAT			0x2A
@@ -125,6 +125,18 @@ esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len);
  */
 esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len);
 
+
+/**
+ * @brief Configura los parámetros operativos del cargador
+ *
+ * @param[in] config Puntero a la estructura con los parámetros de configuración
+ *
+ * @return
+ *      - ESP_OK: Todos los registros fueron configurados correctamente.
+ *      - ESP_ERR_INVALID_ARG: El puntero config es NULL.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex del bus I2C dentro del tiempo límite.
+ *      - Otros códigos de error propios de bq25628_i2c_write() / i2c_master_transmit().
+ */
 esp_err_t bq25628_config(bq25628_config_t *config);
 
 

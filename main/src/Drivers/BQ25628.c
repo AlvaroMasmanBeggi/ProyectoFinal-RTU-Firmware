@@ -219,7 +219,29 @@ esp_err_t bq25628_config(bq25628_config_t *config){
     ret = bq25628_i2c_write(BQ25628_CHARGER_CTRL3, reg_bytes, 1);
     if (ret != ESP_OK) return ret;
 
+    /* --- Charger Mask 0 --- */
 
+    // RESERVED=0, ADC_DONE_MASK=0, TREG_MASK=1, VSYS_MASK=1, IINDPM_MASK=1, VINDPM_MASK=1, SAFETY_TMR_MASK=1, WD_MASK=1
+    reg_bytes[0] = (0U << 7U) | (0U << 6U) | (1U << 5U) | (1U << 4U) | (1U << 3U) | (1U << 2U) | (1U << 1U) | (1U << 0U);
+
+    ret = bq25628_i2c_write(BQ25628_CHARGER_MASK0, reg_bytes, 1);
+    if (ret != ESP_OK) return ret;
+
+    /* --- FAULT Mask 0 --- */
+
+    // VBUS_FAULT_MASK=1, BAT_FAULT_MASK=1, SYS_FAULT_MASK=0 (POR), OTG_FAULT_MASK=1,TSHUT_MASK=0 (POR), RESERVED=00, TS_MASK=1
+    reg_bytes[0] = (1U << 7U) | (1U << 6U) | (0U << 5U) | (1U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (1U << 0U);
+
+    ret = bq25628_i2c_write(BQ25628_FAULT_MASK, reg_bytes, 1);
+    if (ret != ESP_OK) return ret;
+
+    /* --- ADC Control --- */
+
+    // ADC_EN=0 (disparo manual), ADC_RATE=1 (One-shot), ADC_SAMPLE=10,ADC_AVG=0, ADC_AVG_INIT=0, RESERVED=00
+    reg_bytes[0] = (0U << 7U) | (1U << 6U) | (1U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (0U << 0U);
+
+    ret = bq25628_i2c_write(BQ25628_ADC_CTRL, reg_bytes, 1);
+    if (ret != ESP_OK) return ret;
 
     return ESP_OK;
 }
