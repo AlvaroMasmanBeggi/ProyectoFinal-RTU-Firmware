@@ -10,7 +10,8 @@ extern "C" {
 
 /**
  * @brief Confirma la imagen de firmware en ejecución ante el bootloader,
- *        cancelando el mecanismo de rollback automático si estaba en estado pendiente.
+ *        cancelando el rollback si estaba pendiente. Se llama tras una respuesta
+ *        válida del servidor FOTA.
  */
 void fota_confirmar_app_si_valida(void);
 

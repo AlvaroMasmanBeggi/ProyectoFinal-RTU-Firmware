@@ -29,20 +29,15 @@ void app_main(void){
         if (wifi_manager_conectar_sta(&config)) {
             ESP_LOGI(TAG, "¡Conexión Wi-Fi establecida con éxito!");
 
-            // Valida el firmware ante el bootloader para evitar rollback
-            fota_confirmar_app_si_valida();
-
-            // Inicia la tarea de telemetría y cliente FOTA TLS
+            // La imagen se confirma cuando el cliente TLS recibe una respuesta válida del servidor.
             fota_service_iniciar();
         } else {
             ESP_LOGW(TAG, "Fallo crítico al conectar a Wi-Fi. Activando portal cautivo AP...");
             wifi_manager_iniciar_ap();
-            fota_confirmar_app_si_valida();
         }
     } else {
         ESP_LOGW(TAG, "Configuración no encontrada o inválida. Activando portal cautivo AP...");
         wifi_manager_iniciar_ap();
-        fota_confirmar_app_si_valida();
     }
 
     // 4. Iniciar monitor UART en background (escucha comando 'config')
