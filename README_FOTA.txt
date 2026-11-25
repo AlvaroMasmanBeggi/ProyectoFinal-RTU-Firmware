@@ -31,14 +31,16 @@ Para verificar la version del .bin ejecutar:
 
 Si ya estás dentro de la carpeta py_files, puedes ejecutar `python .\servidor_tls_json.py`.
 El servidor abre la interfaz de control local en http://127.0.0.1:8080. Desde allí se selecciona
-el archivo .bin y se escribe su versión. No es necesario detener ni volver a iniciar el servidor:
-la imagen se carga en memoria y se ofrece en el siguiente mensaje de telemetría de la RTU.
-Si la versión reportada por la RTU coincide con la publicada, el servidor responde NONE.
-La versión introducida debe coincidir con la embebida en el binario.
+únicamente el archivo .bin. El servidor obtiene automáticamente la versión embebida en el
+descriptor ESP-IDF, calcula su SHA-256 y publica la imagen en memoria. No es necesario detener
+ni volver a iniciar el servidor. La imagen permanece publicada para todos los dispositivos:
+si su versión coincide, el servidor responde NONE; si difiere, ofrece el firmware.
+El servidor imprime en su consola la telemetría recibida, incluido el identificador derivado
+de la MAC Wi-Fi y la versión; estos reportes no se guardan en una base de datos.
 
 También se puede iniciar el servidor publicando una imagen desde la línea de comandos:
 
-	python .\py_files\servidor_tls_json.py --firmware .\build_fota\hello_world.bin --version 1.0.1
+	python .\py_files\servidor_tls_json.py --firmware .\build_fota\hello_world.bin
 
 La interfaz se liga únicamente a 127.0.0.1, así que solo se puede administrar desde la misma PC.
 
@@ -50,13 +52,16 @@ telemetría. Eso permite que funcione detrás de un router o NAT: el dispositivo
 En cada conexión, el intercambio es:
 
 A - La ESP32 establece TLS con el servidor configurado.
-B - Envía una línea JSON de telemetría, ahora con la versión del firmware:
+B - Envía una línea JSON con el MAC Wi-Fi del dispositivo y la versión del firmware:
 
-	{"sensor_id":"SENS-01","fecha":"2026-10-06","hora":"16:40:00","firmware_version":"1.0.1"}
+	{"sensor_id":"ESP32-AABBCCDDEEFF","firmware_version":"1.0.1"}
+
+El servidor muestra cada reporte en su consola. El identificador derivado de la MAC permite
+distinguir las ESP32 para una futura selección de destinatarios, pero actualmente no se persiste.
 
 El servidor responde con una de estas opciones:
 
-A - NONE\n: no hay una actualización para enviar.
+A - NONE\n: no hay firmware publicado o el dispositivo ya tiene esa versión.
 B - OTA <version> <bytes> <sha256>\n, seguido inmediatamente por esa cantidad exacta de bytes del archivo .bin.
 
 Si recibe firmware, la ESP32 lo escribe en la partición OTA inactiva y comprueba la imagen.
@@ -89,13 +94,12 @@ sus funciones existentes.
 3. QUE SE CAMBIO EN EL SERVIDOR
 En servidor_tls_json.py el servidor ahora:
 
-* Sigue recibiendo e imprimiendo telemetría.
+* Recibe e imprime telemetría en consola; cada ESP32 se identifica con su MAC Wi-Fi.
 
 * Puede iniciarse sin firmware y responder NONE, como servidor de telemetría.
 
-* Puede cargar una imagen .bin con --firmware, calcular su SHA‑256 y anunciarla con --version.
-
-* Incluye una interfaz web local en http://127.0.0.1:8080 para publicar o retirar firmware sin reiniciar el servidor.
+* Puede cargar una imagen .bin con --firmware y detectar automáticamente su versión y SHA‑256.
+* Incluye una interfaz web local en http://127.0.0.1:8080 para publicar firmware con solo adjuntar el archivo.
 
 * Espera una confirmación OK <version> después de enviarla.
 
@@ -103,8 +107,8 @@ En servidor_tls_json.py el servidor ahora:
 
 * La imagen completa se carga en la memoria del servidor, no en la de la ESP32.
 
-Importante: el servidor actual considera que hay que actualizar cuando la versión reportada es distinta de la publicada; no compara cuál versión 
-es más nueva. Por eso, publicá siempre una versión mayor que la instalada. Esta prueba tampoco incluye una política de anti-downgrade.
+Importante: el servidor considera que hay que actualizar cuando la versión reportada es distinta de la publicada; no compara cuál versión
+es más nueva. Publicá una versión nueva para evitar instalar una versión anterior. Esta implementación no incluye una política anti-downgrade.
 
 4. PARTICIONES, VERSION Y TLS
 
@@ -133,9 +137,9 @@ PARA PROBAR UNA ACTUALIZACIÓN SIN REINICIAR EL SERVIDOR:
 2- Verifico la versión incluida en el binario con:
 	python -m esptool --chip esp32 image-info build_fota\hello_world.bin
 3- Inicio una sola vez el servidor con python .\py_files\servidor_tls_json.py.
-4- Abro http://127.0.0.1:8080, selecciono el .bin, escribo la versión que muestra image-info y publico.
+4- Abro http://127.0.0.1:8080 y selecciono el .bin. El servidor lee la versión embebida y publica automáticamente.
 5- La RTU actualiza si su firmware_version es distinta; si es igual, el servidor responde NONE.
-6- Para volver al modo sin actualización, pulso “Retirar firmware y responder NONE”.
+6- El firmware permanece publicado para otros dispositivos. Cuando todos reporten esa versión, recibirán NONE automáticamente.
 
 El servidor atiende cada conexión TLS en su propio hilo y limita a 10 segundos el handshake. Si ya había una instancia
 anterior ejecutándose antes de esta mejora, hay que detenerla con Ctrl+C e iniciarla de nuevo para cargar el cambio.

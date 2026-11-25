@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import ssl
+import struct
 import threading
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -13,25 +14,26 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # Directorio del script: ubicación predeterminada del certificado y la clave TLS.
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 MAX_IMAGE_SIZE = 1024 * 1024
+APP_IMAGE_MAGIC = 0xE9
+APP_DESC_MAGIC = 0xABCD5432
+APP_DESC_VERSION_OFFSET = 16
+APP_VERSION_SIZE = 32
 
 
 class FirmwarePublication:
     """Guarda de forma sincronizada la imagen FOTA que se ofrece a los clientes."""
 
-    def __init__(self, firmware=None, version=None, filename=None):
+    def __init__(self, firmware=None, filename=None):
         self._lock = threading.Lock()
         self._image = None
         if firmware is not None:
-            self.publish(firmware, version, filename)
+            self.publish(firmware, filename)
 
-    def publish(self, firmware, version, filename):
+    def publish(self, firmware, filename):
+        version = extract_firmware_version(firmware)
         digest = hashlib.sha256(firmware).hexdigest()
         with self._lock:
             self._image = (firmware, version, digest, filename)
-
-    def clear(self):
-        with self._lock:
-            self._image = None
 
     def snapshot(self):
         with self._lock:
@@ -45,10 +47,50 @@ def valid_version(version):
     )
 
 
+def extract_firmware_version(image):
+    """Obtiene la versión del descriptor de aplicación ESP-IDF en un .bin."""
+    if len(image) < 24 or image[0] != APP_IMAGE_MAGIC:
+        raise ValueError("El archivo no parece una imagen ESP válida.")
+
+    segment_count = image[1]
+    if not 1 <= segment_count <= 16:
+        raise ValueError("La imagen ESP contiene una cantidad de segmentos inválida.")
+
+    offset = 24
+    for _ in range(segment_count):
+        if offset + 8 > len(image):
+            raise ValueError("La imagen ESP está truncada en una cabecera de segmento.")
+        _, segment_size = struct.unpack_from("<II", image, offset)
+        offset += 8
+        segment_end = offset + segment_size
+        if segment_end > len(image):
+            raise ValueError("La imagen ESP está truncada en un segmento.")
+
+        segment = image[offset:segment_end]
+        magic = struct.pack("<I", APP_DESC_MAGIC)
+        magic_offset = segment.find(magic)
+        while magic_offset >= 0:
+            version_start = magic_offset + APP_DESC_VERSION_OFFSET
+            version_end = version_start + APP_VERSION_SIZE
+            if version_end <= len(segment):
+                version_field = segment[version_start:version_end]
+                version_bytes = version_field.split(b"\0", 1)[0]
+                try:
+                    version = version_bytes.decode("ascii")
+                except UnicodeDecodeError:
+                    version = ""
+                if valid_version(version):
+                    return version
+            magic_offset = segment.find(magic, magic_offset + 1)
+        offset = segment_end
+
+    raise ValueError("No se encontró una versión válida en el descriptor ESP-IDF.")
+
+
 def parse_args():
     """Lee opciones de red, certificados y firmware a publicar."""
     parser = argparse.ArgumentParser(
-        description="Servidor TLS de telemetría con distribución FOTA opcional."
+        description="Servidor TLS de telemetría con distribución FOTA."
     )
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=3334)
@@ -58,22 +100,11 @@ def parse_args():
         default=8080,
         help="Puerto de la interfaz web local (solo accesible desde esta PC)",
     )
-    parser.add_argument("--cert", default=os.path.join(DIRECTORY, "server.crt"))
+    parser.add_argument("--cert", default=os.path.join(DIRECTORY, "server.crt")    )
     parser.add_argument("--key", default=os.path.join(DIRECTORY, "server.key"))
-    parser.add_argument("--firmware", help="Ruta al archivo hello_world.bin")
-    parser.add_argument(
-        "--version",
-        help="Versión del firmware; debe coincidir con la versión dentro del binario",
-    )
+    parser.add_argument("--firmware", help="Ruta al archivo .bin a publicar al iniciar")
     args = parser.parse_args()
 
-    # La ruta del firmware y su versión deben publicarse juntas para evitar
-    # anunciar una imagen sin identificar o una versión sin imagen.
-    if bool(args.firmware) != bool(args.version):
-        parser.error("--firmware y --version deben usarse juntos.")
-    # La ESP32 reserva un campo de 31 caracteres y espera una versión sin espacios.
-    if args.version and not valid_version(args.version):
-        parser.error("--version debe usar hasta 31 caracteres ASCII alfanuméricos, ._-.")
     if not 1 <= args.port <= 65535:
         parser.error("--port debe estar entre 1 y 65535.")
     if not 1 <= args.control_port <= 65535:
@@ -82,15 +113,16 @@ def parse_args():
 
 
 def load_firmware(path):
-    """Carga la imagen una vez al iniciar y calcula su huella SHA-256."""
+    """Carga una imagen y obtiene su versión embebida y huella SHA-256."""
     with open(path, "rb") as firmware_file:
         image = firmware_file.read()
     if not image:
         raise ValueError("El archivo de firmware está vacío.")
     if len(image) > MAX_IMAGE_SIZE:
         raise ValueError(f"El firmware supera el máximo de {MAX_IMAGE_SIZE} bytes.")
+    version = extract_firmware_version(image)
     digest = hashlib.sha256(image).hexdigest()
-    return image, digest
+    return image, version, digest
 
 
 def make_control_handler(publication):
@@ -146,29 +178,21 @@ body{{font:16px Arial,sans-serif;max-width:680px;margin:40px auto;padding:0 18px
 main{{background:white;padding:24px;border-radius:10px;box-shadow:0 2px 12px #0001}}
 label{{display:block;margin:18px 0 6px}}input,button{{font:inherit;padding:10px;width:100%;box-sizing:border-box}}
 button{{margin-top:14px;background:#0759a5;color:white;border:0;border-radius:5px;cursor:pointer}}
-.remove{{background:#666}}code{{overflow-wrap:anywhere}}
+code{{overflow-wrap:anywhere}}
 </style>
 <main><h1>Control FOTA RTU</h1>{status}
 <form action="/publish" method="post" enctype="multipart/form-data">
 <label for="firmware">Archivo .bin</label>
 <input id="firmware" name="firmware" type="file" accept=".bin" required>
-<label for="version">Versión incluida en el firmware</label>
-<input id="version" name="version" maxlength="31" pattern="[A-Za-z0-9._-]{{1,31}}" required>
 <button type="submit">Publicar firmware</button></form>
-<form action="/clear" method="post">
-<button class="remove" type="submit">Retirar firmware y responder NONE</button>
-</form><p>La RTU compara esta versión con la que informa en su JSON.
-Si son iguales, no se actualiza.</p></main></html>"""
+<p>La versión se detecta automáticamente desde el binario. El servidor responde
+<code>NONE</code> si un dispositivo ya tiene esa versión y ofrece el firmware si difiere.</p>
+</main></html>"""
             self._send_html(200, page)
 
         def do_POST(self):
             if not self._is_local_request():
                 self.send_error(403, "La interfaz solo acepta conexiones locales.")
-                return
-            if self.path == "/clear":
-                publication.clear()
-                print("Firmware retirado; el servidor responderá NONE.")
-                self._redirect_home()
                 return
             if self.path != "/publish":
                 self.send_error(404)
@@ -205,26 +229,16 @@ Si son iguales, no se actualiza.</p></main></html>"""
             if mime_message.is_multipart():
                 for part in mime_message.iter_parts():
                     name = part.get_param("name", header="content-disposition")
-                    if name in ("firmware", "version"):
+                    if name == "firmware":
                         fields[name] = part
 
             firmware_part = fields.get("firmware")
-            version_part = fields.get("version")
-            if firmware_part is None or version_part is None:
-                self.send_error(400, "Selecciona un .bin e indica su versión.")
+            if firmware_part is None:
+                self.send_error(400, "Selecciona un archivo .bin.")
                 return
 
             filename = firmware_part.get_filename() or ""
             firmware = firmware_part.get_payload(decode=True)
-            version_bytes = version_part.get_payload(decode=True) or b""
-            try:
-                version = version_bytes.decode("utf-8").strip()
-            except UnicodeDecodeError:
-                self.send_error(400, "La versión debe ser texto ASCII.")
-                return
-            if not valid_version(version):
-                self.send_error(400, "La versión debe usar hasta 31 caracteres ASCII alfanuméricos, ._-.")
-                return
             if not filename.lower().endswith(".bin"):
                 self.send_error(400, "El archivo seleccionado debe tener extensión .bin.")
                 return
@@ -236,10 +250,15 @@ Si son iguales, no se actualiza.</p></main></html>"""
                 return
 
             filename = os.path.basename(filename)
-            publication.publish(firmware, version, filename)
+            try:
+                publication.publish(firmware, filename)
+            except ValueError as error:
+                self.send_error(400, str(error))
+                return
+            _, version, digest, _ = publication.snapshot()
             print(
                 f"Firmware publicado desde la interfaz: versión {version}, "
-                f"{len(firmware)} bytes, SHA-256 {hashlib.sha256(firmware).hexdigest()}"
+                f"{len(firmware)} bytes, SHA-256 {digest}"
             )
             self._redirect_home()
 
@@ -309,13 +328,13 @@ def main():
     firmware = None
     if args.firmware:
         # Mantener la imagen y su hash en memoria permite servirla a cada dispositivo.
-        firmware, digest = load_firmware(args.firmware)
+        firmware, version, digest = load_firmware(args.firmware)
         filename = os.path.basename(args.firmware)
     else:
-        digest = filename = None
-    publication = FirmwarePublication(firmware, args.version, filename)
+        version = digest = filename = None
+    publication = FirmwarePublication(firmware, filename)
     if firmware is not None:
-        print(f"Firmware preparado: versión {args.version}, {len(firmware)} bytes, SHA-256 {digest}")
+        print(f"Firmware preparado: versión {version}, {len(firmware)} bytes, SHA-256 {digest}")
 
     # El servidor presenta el certificado y la clave configurados al negociar TLS.
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

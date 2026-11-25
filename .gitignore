@@ -1,4 +1,5 @@
 build/
+build_fota/
 *.elf
 *.bin
 *.hex

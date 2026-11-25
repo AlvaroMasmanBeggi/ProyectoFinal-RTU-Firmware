@@ -42,7 +42,7 @@ void app_main(void){
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C1_bus_cfg, &I2C1_Handler));
     ESP_ERROR_CHECK(bq25628_init(I2C1_Handler));
 
-    ESP_LOGI(TAG, "=== ESTE FIRMWARE LO SUBI CON FOTA POR SEGUNDA VEZ ===\n");
+    ESP_LOGI(TAG, "=== BAIGORRIA/MASMAN ===\n");
 
     // 1. Inicializar la memoria no volátil (NVS)
     ESP_ERROR_CHECK(app_config_init_nvs());
