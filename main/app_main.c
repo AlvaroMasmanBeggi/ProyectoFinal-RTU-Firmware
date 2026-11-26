@@ -1,14 +1,75 @@
-#include <stdio.h>
+#include <stdlib.h>
+#include <esp_err.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
+
 #include "esp_log.h"
 #include "app_config.h"
 #include "wifi_manager.h"
 #include "fota_service.h"
 #include "uart_console.h"
+#include "gpio_defs.h"
+
+#include "DS3231M.h"
 
 static const char *TAG = "RTU_MAIN";
 
+/* =========================================================================
+ * Declaración de Mutex / Semáforos compartidos
+ * ========================================================================= */
+/* Protege el acceso concurrente al bus I2C1 entre distintas tareas FreeRTOS */
+SemaphoreHandle_t I2C1_Mutex = NULL;
+
+/* =========================================================================
+ * Declaración y configuración del Bus Maestro I2C1 (bus interno de la RTU)
+ * ========================================================================= */
+i2c_master_bus_handle_t I2C1_Handler;
+i2c_master_bus_config_t I2C1_bus_cfg = {
+    .clk_source = I2C_CLK_SRC_DEFAULT,          /* Fuente de reloj por defecto del ESP32-S3 */
+    .i2c_port = I2C1_MASTER_PORT,               /* Puerto hardware I2C asignado */
+    .scl_io_num = I2C1_SCL_PIN,                 /* Pin GPIO para línea de reloj SCL */
+    .sda_io_num = I2C1_SDA_PIN,                 /* Pin GPIO para línea de datos SDA */
+    .glitch_ignore_cnt = 7,                     /* Filtro digital contra ruido/glitches en el bus */
+    .flags.enable_internal_pullup = false,      /* Deshabilitado: la placa ya tiene pull-ups externos a +3V3 */
+};
+
 void app_main(void){
     ESP_LOGI(TAG, "=== Iniciando RTU AgroConnect ===\n");
+
+    /* 1. Creación de mutex/semáforos antes de habilitar periféricos */
+    I2C1_Mutex = xSemaphoreCreateMutex();
+    configASSERT(I2C1_Mutex != NULL);   /* Detiene la ejecución si no hubo RAM para crear el Mutex */
+
+    /* 2. Inicializar bus I2C1 maestro y registrar los dispositivos asociados */
+    ESP_ERROR_CHECK(i2c_new_master_bus(&I2C1_bus_cfg, &I2C1_Handler));
+    
+    ESP_ERROR_CHECK(ds3231m_init(I2C1_Handler));
+
+    /* 3. Configurar parámetros operativos del RTC DS3231M */
+    ds3231m_config_t rtc_cfg = {
+        .enable_osc_on_vbat = true,     /* Mantiene el reloj corriendo con la pila de respaldo en cortes */
+        .enable_32khz_out   = false,    /* Deshabilita salida 32.768 kHz para minimizar consumo en batería */
+        .int_pin_alarm_mode = true,     /* Usa pin INT/SQW como salida de interrupción por alarma */
+        .enable_sqw_on_vbat = false,    /* No genera onda cuadrada cuando opera respaldado por batería */
+        .enable_alarm1_int  = false,    /* Interrupción de Alarma 1 apagada en el arranque */
+        .enable_alarm2_int  = false,    /* Interrupción de Alarma 2 apagada en el arranque */
+    };
+    ESP_ERROR_CHECK(ds3231m_config(&rtc_cfg));
+
+    /* 4. Verificar si el RTC perdió alimentación (bandera OSF) para saber si la hora es válida */
+    bool rtc_osc_stopped = false;
+    ESP_ERROR_CHECK(ds3231m_is_oscillator_stopped(&rtc_osc_stopped));
+    if (rtc_osc_stopped) {
+        ESP_LOGW(TAG, "RTC sin hora valida (OSF=1). Pendiente de sincronizacion SNTP.");
+    } else {
+        ds3231m_time_t fecha_actual;
+        if (ds3231m_get_time(&fecha_actual) == ESP_OK) {
+            ESP_LOGI(TAG, "Fecha/Hora RTC: %02u/%02u/%04u %02u:%02u:%02u",
+                     fecha_actual.date, fecha_actual.month, fecha_actual.year,
+                     fecha_actual.hours, fecha_actual.minutes, fecha_actual.seconds);
+        }
+    }
 
 
     ESP_LOGI(TAG, "=== BAIGORRIA/MASMAN ===\n");

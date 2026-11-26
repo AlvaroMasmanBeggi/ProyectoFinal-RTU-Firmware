@@ -6,10 +6,12 @@ idf_component_register(
         "src/web_portal.c"
         "src/fota_service.c"
         "src/uart_console.c"
+        "src/Drivers/DS3231M.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
         "include"
+        "include/Drivers"
     REQUIRES
         nvs_flash
         esp_wifi
@@ -21,4 +23,5 @@ idf_component_register(
         mbedtls
         driver
         esp_driver_uart
+        esp_driver_i2c
 )
