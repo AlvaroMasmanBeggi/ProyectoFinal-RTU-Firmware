@@ -92,6 +92,44 @@ typedef struct {
 	int16_t tdie_temp_c;    		// Temperatura interna del integrado (°C)
 } bq25628_adc_data_t;
 
+// Enum y struct de fallas y estado
+
+/**
+ * @brief Máscaras de bits para las fallas críticas
+ */
+typedef enum {
+    BQ25628_FAULT_NONE  = 0,
+    BQ25628_FAULT_SYS   = (1U << 0),    // Sobretensión o cortocircuito en VSYS
+    BQ25628_FAULT_TSHUT = (1U << 1),    // Apagado térmico del silicio (~150 °C)
+} bq25628_fault_t;
+
+/**
+ * @brief Etapas de carga
+ */
+typedef enum {
+    BQ25628_CHG_STAT_NOT_CHARGING   = 0,    // No cargando / carga finalizada o deshabilitada
+    BQ25628_CHG_STAT_CC_MODE        = 1,    // Carga en corriente constante (Pre-charge / Fast Charge)
+    BQ25628_CHG_STAT_CV_MODE        = 2,    // Carga en tensión constante (Taper Charge)
+    BQ25628_CHG_STAT_TOP_OFF        = 3,    // Temporizador de Top-off activo
+} bq25628_chg_stat_t;
+
+/**
+ * @brief Estado de detección de fuente de entrada
+ */
+typedef enum {
+    BQ25628_VBUS_STAT_NO_INPUT  = 0,    // Sin entrada externa o VBUS fuera de rango UVLO
+    BQ25628_VBUS_STAT_ADAPTER   = 4,    // Fuente externa válida detectada (12 V)
+} bq25628_vbus_stat_t;
+
+/**
+ * @brief Estado operativo
+ */
+typedef struct {
+    bq25628_chg_stat_t  chg_stat;       // Fase actual de carga de la batería
+    bq25628_vbus_stat_t vbus_stat;      // Estado/tipo de fuente conectada en VBUS
+    bool                vbus_present;   // true si hay alimentación externa válida en VBUS
+} bq25628_status_t;
+
 // Definicion de funciones
 
 /**
@@ -165,6 +203,32 @@ esp_err_t bq25628_config(bq25628_config_t *config);
  *      - Otros códigos de error propios de bq25628_i2c_write() / bq25628_i2c_read().
  */
 esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data);
+
+/**
+ * @brief Lee los registros de estado y flags de falla, limpiando los flags
+ *
+ * @param[out] faults Puntero a la variable donde se almacenará la máscara de bits
+ *
+ * @return
+ *      - ESP_OK: Lectura completada correctamente.
+ *      - ESP_ERR_INVALID_ARG: El puntero faults es NULL.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex del bus I2C dentro del tiempo límite.
+ *      - Otros códigos de error propios de bq25628_i2c_read().
+ */
+esp_err_t bq25628_read_faults(uint8_t *faults);
+
+/**
+ * @brief Lee el estado operativo actual del cargador y limpia los flags enclavados
+ *
+ * @param[out] status Puntero a la estructura donde se almacenará el estado operativo.
+ *
+ * @return
+ *      - ESP_OK: Estado leído y flags limpiados correctamente.
+ *      - ESP_ERR_INVALID_ARG: El puntero status es NULL.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex del bus I2C dentro del tiempo límite.
+ *      - Otros códigos de error propios de bq25628_i2c_read().
+ */
+esp_err_t bq25628_read_status(bq25628_status_t *status);
 
 
 

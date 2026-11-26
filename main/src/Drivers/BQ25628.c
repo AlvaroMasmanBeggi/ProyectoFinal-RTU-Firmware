@@ -388,3 +388,60 @@ esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data){
 
 	return ESP_OK;
 }
+
+esp_err_t bq25628_read_faults(uint8_t *faults){
+    if (faults == NULL) return ESP_ERR_INVALID_ARG;
+
+    uint8_t fault_status = 0;
+    uint8_t fault_flag = 0;
+    esp_err_t ret;
+
+    /* --- FAULT Status 0: condición activa en tiempo real --- */
+    ret = bq25628_i2c_read(BQ25628_FAULT_STAT, &fault_status, 1);
+    if (ret != ESP_OK) return ret;
+
+    /* --- FAULT Flag 0: evento enclavado (Read-to-Clear, libera pin INT) --- */
+    ret = bq25628_i2c_read(BQ25628_FAULT_FLAG, &fault_flag, 1);
+    if (ret != ESP_OK) return ret;
+
+    uint8_t active_faults = fault_status | fault_flag;
+    uint8_t result = BQ25628_FAULT_NONE;
+
+    // Bit 5: SYS_FAULT (sobretensión o cortocircuito en VSYS)
+    if (active_faults & (1U << 5U)) {
+        result |= BQ25628_FAULT_SYS;
+    }
+
+    // Bit 3: TSHUT (apagado térmico del silicio ~150 °C)
+    if (active_faults & (1U << 3U)) {
+        result |= BQ25628_FAULT_TSHUT;
+    }
+
+    *faults = result;
+    return ESP_OK;
+}
+
+esp_err_t bq25628_read_status(bq25628_status_t *status){
+    if (status == NULL) return ESP_ERR_INVALID_ARG;
+
+    uint8_t chg_status_1 = 0;
+    uint8_t chg_flag_1 = 0;
+    esp_err_t ret;
+
+    /* --- Charger Status 1: estado operativo actual --- */
+    ret = bq25628_i2c_read(BQ25628_CHARGER_STAT1, &chg_status_1, 1);
+    if (ret != ESP_OK) return ret;
+
+    /* --- Charger Flag 1: lectura Read-to-Clear para liberar INT --- */
+    ret = bq25628_i2c_read(BQ25628_CHARGER_FLAG1, &chg_flag_1, 1);
+    if (ret != ESP_OK) return ret;
+
+    status->chg_stat = (bq25628_chg_stat_t)((chg_status_1 >> 3U) & 0x03U);
+
+    status->vbus_stat = (bq25628_vbus_stat_t)(chg_status_1 & 0x07U);
+
+    // Presencia de fuente externa válida en VBUS
+    status->vbus_present = (status->vbus_stat != BQ25628_VBUS_STAT_NO_INPUT);
+
+    return ESP_OK;
+}
