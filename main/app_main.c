@@ -10,6 +10,7 @@
 #include "fota_service.h"
 #include "uart_console.h"
 #include "gpio_defs.h"
+#include "irq_manager.h"
 
 #include "BQ25628.h"
 
@@ -41,6 +42,10 @@ void app_main(void){
 	// Inicializar bus I2C1 maestro y periféricos asociados
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C1_bus_cfg, &I2C1_Handler));
     ESP_ERROR_CHECK(bq25628_init(I2C1_Handler));
+
+    // Inicializar manejador de interrupciones y asignar GPIOs
+    ESP_ERROR_CHECK(irq_manager_init());
+    ESP_ERROR_CHECK(irq_manager_register_gpio(CHARGER_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_CHARGER_INT));
 
     ESP_LOGI(TAG, "=== BAIGORRIA/MASMAN ===\n");
 

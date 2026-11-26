@@ -7,6 +7,7 @@ idf_component_register(
         "src/fota_service.c"
         "src/uart_console.c"
         "src/Drivers/BQ25628.c"
+        "src/irq_manager.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
@@ -24,4 +25,5 @@ idf_component_register(
         driver
         esp_driver_uart
         esp_driver_i2c
+        esp_driver_gpio
 )

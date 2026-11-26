@@ -2,18 +2,11 @@
 #include "freertos/idf_additions.h"
 #include <stdint.h>
 
-SemaphoreHandle_t bq25628_adc_sem = NULL;
+static volatile TaskHandle_t s_adc_waiter_task = NULL;
 
 esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle){
 	if (bus_handle == NULL) return ESP_ERR_INVALID_ARG;
     if (BQ25628_dev != NULL) return ESP_ERR_INVALID_STATE;
-
-    if (bq25628_adc_sem == NULL) {
-        bq25628_adc_sem = xSemaphoreCreateBinary();
-        if (bq25628_adc_sem == NULL) {
-            return ESP_ERR_NO_MEM;
-        }
-    }
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -269,7 +262,9 @@ esp_err_t bq25628_config(bq25628_config_t *config){
 esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data){
 	if (adc_data == NULL) return ESP_ERR_INVALID_ARG;
 
-    xSemaphoreTake(bq25628_adc_sem, 0);	// Limpia cualquier disparo previo pendiente en el semáforo
+	// Limpiar notificaciones previas y registrar esta tarea como receptora de ADC_DONE
+    ulTaskNotifyTake(pdTRUE, 0);
+    s_adc_waiter_task = xTaskGetCurrentTaskHandle();
 
 	uint8_t reg_data;
 	reg_data = (1U << 7U) | (1U << 6U) | (0U << 5U) | (0U << 4U) | (0U << 3U) | (0U << 2U) | (0U << 1U) | (0U << 0U);
@@ -277,8 +272,11 @@ esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data){
 	esp_err_t ret = bq25628_i2c_write(BQ25628_ADC_CTRL, &reg_data, 1);
     if (ret != ESP_OK) return ret;
 
-    // Bloquea la tarea hasta que la rutina de interrupcion notifique el fin de conversión
-    if (xSemaphoreTake(bq25628_adc_sem, pdMS_TO_TICKS(300)) != pdTRUE) return ESP_ERR_TIMEOUT;
+    // Bloquear hasta recibir xTaskNotifyGive() desde irq_manager_task
+    uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+    s_adc_waiter_task = NULL;
+
+    if (notified == 0) return ESP_ERR_TIMEOUT;
 
     /* --- Input Bus Current (IBUS_ADC) --- */
 
@@ -444,4 +442,22 @@ esp_err_t bq25628_read_status(bq25628_status_t *status){
     status->vbus_present = (status->vbus_stat != BQ25628_VBUS_STAT_NO_INPUT);
 
     return ESP_OK;
+}
+
+esp_err_t bq25628_check_adc_done_flag(uint8_t *adc_done){
+    if (adc_done == NULL) return ESP_ERR_INVALID_ARG;
+
+    uint8_t chg_flag_0 = 0;
+    esp_err_t ret = bq25628_i2c_read(BQ25628_CHARGER_FLAG0, &chg_flag_0, 1);
+    if (ret != ESP_OK) return ret;
+
+    *adc_done = (chg_flag_0 & 0x01U);   // Bit 0: ADC_DONE_FLAG (Read-to-Clear)
+    return ESP_OK;
+}
+
+void bq25628_notify_adc_done(void){
+    TaskHandle_t waiter = s_adc_waiter_task;
+    if (waiter != NULL) {
+        xTaskNotifyGive(waiter);
+    }
 }

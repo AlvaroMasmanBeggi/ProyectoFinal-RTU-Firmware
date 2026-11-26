@@ -67,7 +67,6 @@
 #define I2C_TIMEOUT 100						// Tiempo en milisegundos que debe pasar para indicar fallo en transaccion I2C
 
 extern SemaphoreHandle_t I2C1_Mutex;
-extern SemaphoreHandle_t bq25628_adc_sem;
 extern i2c_master_dev_handle_t BQ25628_dev;
 
 // Estructura de configuracion
@@ -198,7 +197,6 @@ esp_err_t bq25628_config(bq25628_config_t *config);
  * @return
  *      - ESP_OK: Conversión finalizada y canales leídos correctamente.
  *      - ESP_ERR_INVALID_ARG: El puntero adc_data es NULL.
- *      - ESP_ERR_INVALID_STATE: El semáforo bq25628_adc_sem no fue inicializado.
  *      - ESP_ERR_TIMEOUT: Se agotó el tiempo de espera de conversion o por el mutex del bus I2C.
  *      - Otros códigos de error propios de bq25628_i2c_write() / bq25628_i2c_read().
  */
@@ -229,6 +227,10 @@ esp_err_t bq25628_read_faults(uint8_t *faults);
  *      - Otros códigos de error propios de bq25628_i2c_read().
  */
 esp_err_t bq25628_read_status(bq25628_status_t *status);
+
+esp_err_t bq25628_check_adc_done_flag(uint8_t *adc_done);
+
+void bq25628_notify_adc_done(void);
 
 
 
