@@ -1,24 +1,24 @@
 #include "BQ25628.h"
+#include "esp_err.h"
 #include "freertos/idf_additions.h"
 #include <stdint.h>
 
 static volatile TaskHandle_t s_adc_waiter_task = NULL;
 
-esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle){
-	if (bus_handle == NULL) return ESP_ERR_INVALID_ARG;
-    if (BQ25628_dev != NULL) return ESP_ERR_INVALID_STATE;
-
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address  = BQ25628_I2C_ADDR,
-        .scl_speed_hz = BQ25628_I2C_SPEED_HZ,
-    };
-
-    return i2c_master_bus_add_device(bus_handle, &dev_cfg, &BQ25628_dev);
-
-}
-
-esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len){
+/**
+ * @brief Escribe uno o varios bytes en un registro específico
+ *
+ * @param[in] reg_addr Dirección del registro interno del BQ25628 donde comenzará la escritura.
+ * @param[in] data     Puntero al buffer con los datos a transmitir.
+ * @param[in] len      Cantidad de bytes a escribir (rango válido: 1 a 63).
+ *
+ * @return
+ *      - ESP_OK: Escritura realizada con éxito.
+ *      - ESP_ERR_INVALID_ARG: Puntero nulo, longitud igual a 0 o superior a 63 bytes.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex I2C dentro del tiempo límite
+ *      - Otros códigos de error propios de i2c_master_transmit().
+ */
+static esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len){
 
 	if (data == NULL || len == 0 || (len + 1) > 64) return ESP_ERR_INVALID_ARG;
 
@@ -39,7 +39,21 @@ esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len){
     return ret;
 }
 
-esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len){
+
+/**
+ * @brief Lee uno o varios bytes consecutivos a partir de un registro determinado
+ *
+ * @param[in]  reg_addr Dirección del registro inicial a leer en el BQ25628.
+ * @param[out] data     Puntero al buffer donde se almacenarán los bytes leídos.
+ * @param[in]  len      Cantidad de bytes a leer (debe ser mayor a 0).
+ *
+ * @return
+ *      - ESP_OK: Lectura realizada con éxito.
+ *      - ESP_ERR_INVALID_ARG: Puntero nulo o longitud igual a 0.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex I2C dentro del tiempo límite.
+ *      - Otros códigos de error propios de i2c_master_transmit_receive().
+ */
+static esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len){
     if (data == NULL || len == 0) return ESP_ERR_INVALID_ARG;
 
     #if USE_MUTEX
@@ -55,7 +69,18 @@ esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len){
     return ret;
 }
 
-esp_err_t bq25628_config(bq25628_config_t *config){
+/**
+ * @brief Configura los parámetros operativos del cargador
+ *
+ * @param[in] config Puntero a la estructura con los parámetros de configuración
+ *
+ * @return
+ *      - ESP_OK: Todos los registros fueron configurados correctamente.
+ *      - ESP_ERR_INVALID_ARG: El puntero config es NULL.
+ *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex del bus I2C dentro del tiempo límite.
+ *      - Otros códigos de error propios de bq25628_i2c_write() / i2c_master_transmit().
+ */
+static esp_err_t bq25628_config(bq25628_config_t *config){
 	if (config == NULL) return ESP_ERR_INVALID_ARG;
 
 	uint8_t reg_bytes[2];\
@@ -255,7 +280,6 @@ esp_err_t bq25628_config(bq25628_config_t *config){
     ret = bq25628_i2c_write(BQ25628_ADC_FUNCTION, reg_bytes, 1);
     if (ret != ESP_OK) return ret;
 
-
     return ESP_OK;
 }
 
@@ -358,8 +382,8 @@ esp_err_t bq25628_readADC(bq25628_adc_data_t *adc_data){
 
     // Despeje de R_NTC para red estándar TI: RT1 = 5.23 kOhm, RT2 = 30.1 kOhm
     if (ts_ratio > 0.05f && ts_ratio < 0.845f) {
-        float r_bottom = (ts_ratio * 5230.0f) / (1.0f - ts_ratio);
-        float r_ntc = (30100.0f * r_bottom) / (30100.0f - r_bottom);
+    float r_bottom = (ts_ratio * 5230.0f) / (1.0f - ts_ratio);
+    float r_ntc = (30100.0f * r_bottom) / (30100.0f - r_bottom);
 
         // Ecuación Beta para NTC 103AT-2 (R0 = 10 kOhm a 25 °C, Beta = 3435 K)
         float inv_t = (1.0f / 298.15f) + (1.0f / 3435.0f) * logf(r_ntc / 10000.0f);
@@ -460,4 +484,25 @@ void bq25628_notify_adc_done(void){
     if (waiter != NULL) {
         xTaskNotifyGive(waiter);
     }
+}
+
+esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle, bq25628_config_t *config){
+	if (bus_handle == NULL) return ESP_ERR_INVALID_ARG;
+    if (BQ25628_dev != NULL) return ESP_ERR_INVALID_STATE;
+
+    esp_err_t ret;
+
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address  = BQ25628_I2C_ADDR,
+        .scl_speed_hz = BQ25628_I2C_SPEED_HZ,
+    };
+
+    ret =  i2c_master_bus_add_device(bus_handle, &dev_cfg, &BQ25628_dev);
+    if (ret != ESP_OK) return ret;
+
+    ret = bq25628_config(config);
+    if (ret != ESP_OK) return ret;
+
+    return ESP_OK;
 }

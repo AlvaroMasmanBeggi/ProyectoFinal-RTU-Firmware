@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
+#include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "app_config.h"
 #include "wifi_manager.h"
@@ -13,6 +14,7 @@
 #include "irq_manager.h"
 
 #include "BQ25628.h"
+#include "bq27441.h"
 
 static const char *TAG = "RTU_MAIN";
 
@@ -21,6 +23,12 @@ SemaphoreHandle_t I2C1_Mutex = NULL;
 
 // Declaracion de dispositivos
 i2c_master_dev_handle_t BQ25628_dev = NULL;
+i2c_master_dev_handle_t BQ27441_bus_handler = NULL;
+BQ27441_ctx_t BQ27441_driver_dev;
+
+// Estructuras de configuracion
+bq25628_config_t charger_config;
+BQ27441_config_t fuel_gauge_config;
 
 // Declaracion de manejadores
 i2c_master_bus_handle_t I2C1_Handler;
@@ -41,7 +49,9 @@ void app_main(void){
 
 	// Inicializar bus I2C1 maestro y periféricos asociados
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C1_bus_cfg, &I2C1_Handler));
-    ESP_ERROR_CHECK(bq25628_init(I2C1_Handler));
+
+    ESP_ERROR_CHECK(bq25628_init(I2C1_Handler, &charger_config));
+    ESP_ERROR_CHECK(BQ27441_initialization (I2C1_Handler, &BQ27441_driver_dev, &fuel_gauge_config));
 
     // Inicializar manejador de interrupciones y asignar GPIOs
     ESP_ERROR_CHECK(irq_manager_init());

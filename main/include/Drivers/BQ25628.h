@@ -135,6 +135,7 @@ typedef struct {
  * @brief Inicializa el driver
  *
  * @param[in] bus_handle Handle del bus I2C maestro.
+ * @param[in] *config Puntero a estructura de configuracion
  *
  * @return
  *      - ESP_OK: Dispositivo registrado y listo para operar.
@@ -143,51 +144,7 @@ typedef struct {
  *		- ESP_ERR_NO_MEM: no hay memoria suficiente para crear el semaforo
  *      - Otros códigos de error propios de i2c_master_bus_add_device().
  */
-esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle);
-
-/**
- * @brief Escribe uno o varios bytes en un registro específico
- *
- * @param[in] reg_addr Dirección del registro interno del BQ25628 donde comenzará la escritura.
- * @param[in] data     Puntero al buffer con los datos a transmitir.
- * @param[in] len      Cantidad de bytes a escribir (rango válido: 1 a 63).
- *
- * @return
- *      - ESP_OK: Escritura realizada con éxito.
- *      - ESP_ERR_INVALID_ARG: Puntero nulo, longitud igual a 0 o superior a 63 bytes.
- *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex I2C dentro del tiempo límite
- *      - Otros códigos de error propios de i2c_master_transmit().
- */
-esp_err_t bq25628_i2c_write(uint8_t reg_addr, const uint8_t *data, size_t len);
-
-/**
- * @brief Lee uno o varios bytes consecutivos a partir de un registro determinado
- *
- * @param[in]  reg_addr Dirección del registro inicial a leer en el BQ25628.
- * @param[out] data     Puntero al buffer donde se almacenarán los bytes leídos.
- * @param[in]  len      Cantidad de bytes a leer (debe ser mayor a 0).
- *
- * @return
- *      - ESP_OK: Lectura realizada con éxito.
- *      - ESP_ERR_INVALID_ARG: Puntero nulo o longitud igual a 0.
- *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex I2C dentro del tiempo límite.
- *      - Otros códigos de error propios de i2c_master_transmit_receive().
- */
-esp_err_t bq25628_i2c_read(uint8_t reg_addr, uint8_t *data, size_t len);
-
-
-/**
- * @brief Configura los parámetros operativos del cargador
- *
- * @param[in] config Puntero a la estructura con los parámetros de configuración
- *
- * @return
- *      - ESP_OK: Todos los registros fueron configurados correctamente.
- *      - ESP_ERR_INVALID_ARG: El puntero config es NULL.
- *      - ESP_ERR_TIMEOUT: No se pudo adquirir el mutex del bus I2C dentro del tiempo límite.
- *      - Otros códigos de error propios de bq25628_i2c_write() / i2c_master_transmit().
- */
-esp_err_t bq25628_config(bq25628_config_t *config);
+esp_err_t bq25628_init(i2c_master_bus_handle_t bus_handle, bq25628_config_t *config);
 
 /**
  * @brief Ejecuta una adquisición en modo one-shot del ADC interno y lee los canales habilitados.

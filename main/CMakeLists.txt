@@ -8,6 +8,7 @@ idf_component_register(
         "src/uart_console.c"
         "src/Drivers/BQ25628.c"
         "src/irq_manager.c"
+        "src/bq27441.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
