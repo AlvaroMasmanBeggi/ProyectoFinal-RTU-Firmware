@@ -56,6 +56,16 @@ typedef struct {
 	uint16_t taper_time;				// Duracion de la etapa taper del cargador (unidad 0.1h)
 } BQ27441_config_t;
 
+typedef struct {
+	bool fully_charged;					// En 1 cuando la bateria esta al 100%
+	bool low_battery;					// En 1 cuando la bateria esta por debajo del 15%
+	bool crit_low_battery;				// En 1 cuando la bateria esta por debajo del 5%
+	uint16_t FullCapacity;				// Capacidad maxima actual, teniendo en cuenta la degradacion y el envejecimiento
+	uint16_t RemainingCapacity; 		// Capacidad util, ajustada por temperatura y por la tasa de descarga instantanea
+	uint16_t StateOfCharge;				// Porcentaje de bateria restante
+	uint8_t StateOfHealth;				// Estado de salud en % considerando el envejecimiento y la degradacion quimica
+} battery_info_t;
+
 // Parameters for the current() function, to specify which current to read
 typedef enum {
     AVG,  // Average Current (DEFAULT)

@@ -2,8 +2,11 @@
 #define IRQ_MANAGER_H
 
 #include <stdint.h>
+#include "bq27441.h"
 #include "esp_err.h"
 #include "driver/gpio.h"
+
+extern battery_info_t battery_info;
 
 /**
  * @brief Máscara de bits para fuentes de interrupción de hardware (hasta 32 fuentes).

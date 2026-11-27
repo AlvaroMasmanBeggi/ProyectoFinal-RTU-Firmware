@@ -50,6 +50,22 @@ static void handle_bq25628_interrupt(void){
 }
 
 /**
+ * @brief Manejador de interrupcion del Fuel Gauge BQ27441
+ */
+static void handle_bq27441_interrupt(void){
+	if(BQ27441_fcFlag()) battery_info.fully_charged = true;
+	else battery_info.fully_charged = false;
+
+	if(BQ27441_socFlag()) battery_info.low_battery = true;
+	else battery_info.low_battery = false;
+
+	if(BQ27441_socfFlag()) battery_info.crit_low_battery = true;
+	else battery_info.crit_low_battery = false;
+
+	battery_info.StateOfCharge = BQ27441_soc(FILTERED); // Actualizar porcentaje de bateria
+}
+
+/**
  * @brief Tarea central que atiende todas las interrupciones de periféricos.
  */
 static void irq_manager_task(void *pvParameters){
@@ -64,7 +80,7 @@ static void irq_manager_task(void *pvParameters){
             }
 
             if (pending_irqs & IRQ_SRC_FUEL_GAUGE_INT) {
-                // Futuro: manejar estado y fallas del Fuel Gauge
+                handle_bq27441_interrupt();
             }
 
             if (pending_irqs & IRQ_SRC_BUTTON_INT) {

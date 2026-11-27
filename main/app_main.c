@@ -7,6 +7,7 @@
 #include "driver/i2c_types.h"
 #include "esp_log.h"
 #include "app_config.h"
+#include "hal/gpio_types.h"
 #include "wifi_manager.h"
 #include "fota_service.h"
 #include "uart_console.h"
@@ -29,6 +30,10 @@ BQ27441_ctx_t BQ27441_driver_dev;
 // Estructuras de configuracion
 bq25628_config_t charger_config;
 BQ27441_config_t fuel_gauge_config;
+
+// Estructuras de estado del sistema
+battery_info_t battery_info;
+bq25628_adc_data_t charger_info;
 
 // Declaracion de manejadores
 i2c_master_bus_handle_t I2C1_Handler;
@@ -56,6 +61,7 @@ void app_main(void){
     // Inicializar manejador de interrupciones y asignar GPIOs
     ESP_ERROR_CHECK(irq_manager_init());
     ESP_ERROR_CHECK(irq_manager_register_gpio(CHARGER_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_CHARGER_INT));
+    ESP_ERROR_CHECK(irq_manager_register_gpio(FUELG_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_FUEL_GAUGE_INT));
 
     ESP_LOGI(TAG, "=== BAIGORRIA/MASMAN ===\n");
 

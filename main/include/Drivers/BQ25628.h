@@ -78,7 +78,6 @@ typedef struct {
 	uint16_t min_sys_voltage_mv;	// Voltaje minimo de salida en mV (2560 a 3840)
 	uint16_t precharge_current_ma;	// Corriente de pre-carga en mA (10 a 310)
 	uint16_t term_current_ma;		// Corriente de terminacion en mA (5 a 310)
-
 } bq25628_config_t;
 
 typedef struct {
