@@ -9,6 +9,7 @@ idf_component_register(
         "src/Drivers/BQ25628.c"
         "src/irq_manager.c"
         "src/bq27441.c"
+        "src/Drivers/DS3231M.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS
