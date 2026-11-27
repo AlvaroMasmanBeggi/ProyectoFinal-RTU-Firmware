@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "bq25628.h"
+#include "TCA8418.h"
 
 static const char *TAG = "IRQ_MGR";
 static TaskHandle_t s_irq_task_handle = NULL;
@@ -65,6 +66,39 @@ static void handle_bq27441_interrupt(void){
 	battery_info.StateOfCharge = BQ27441_soc(FILTERED); // Actualizar porcentaje de bateria
 }
 
+
+/**
+ * @brief Manejador de interrupción del controlador de teclado TCA8418.
+ *
+ * Extrae todos los eventos pendientes en la FIFO interna (presión y liberación
+ * de teclas) y limpia las banderas del registro INT_STAT (0x02).
+ */
+static void handle_tca8418_interrupt(void)
+{
+    tca8418_key_event_t event;
+    bool has_event = false;
+
+    /* 1. Drenar todos los eventos acumulados en la FIFO (máximo 10) */
+    while (tca8418_read_event(&event, &has_event) == ESP_OK && has_event) {
+        ESP_LOGI(TAG, "Tecla %u (Fila %u, Col %u) -> %s",
+                 event.key_code,
+                 event.row,
+                 event.col,
+                 event.is_pressed ? "PRESIONADA" : "LIBERADA");
+
+        /* Aquí se enviará el evento a la cola de interfaz de usuario / menú LCD */
+    }
+
+    /* 2. Leer y limpiar las banderas de interrupción en INT_STAT (W1C) */
+    tca8418_int_status_t int_stat;
+    if (tca8418_get_and_clear_int_status(&int_stat, true) == ESP_OK) {
+        if (int_stat.overflow) {
+            ESP_LOGW(TAG, "Advertencia TCA8418: Desbordamiento de FIFO de teclado");
+        }
+    }
+}
+
+
 /**
  * @brief Tarea central que atiende todas las interrupciones de periféricos.
  */
@@ -84,7 +118,7 @@ static void irq_manager_task(void *pvParameters){
             }
 
             if (pending_irqs & IRQ_SRC_BUTTON_INT) {
-                // Futuro: ver que boton se presiono en el teclado
+                handle_tca8418_interrupt();
             }
 
         }

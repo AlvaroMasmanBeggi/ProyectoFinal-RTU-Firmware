@@ -10,6 +10,7 @@ idf_component_register(
         "src/irq_manager.c"
         "src/bq27441.c"
         "src/Drivers/DS3231M.c"
+        "src/Drivers/TCA8418.c"
     EMBED_TXTFILES
         "../certs/ota_server_ca.pem"
     INCLUDE_DIRS

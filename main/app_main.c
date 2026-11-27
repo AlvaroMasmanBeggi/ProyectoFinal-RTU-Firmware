@@ -19,6 +19,7 @@
 #include "BQ25628.h"
 #include "bq27441.h"
 #include "DS3231M.h"
+#include "TCA8418.h"
 
 
 
@@ -37,6 +38,7 @@ i2c_master_dev_handle_t BQ25628_dev = NULL; //Cargador de bateria
 i2c_master_dev_handle_t BQ27441_bus_handler = NULL; //Fuel gauge
 BQ27441_ctx_t BQ27441_driver_dev; // Contexto del driver del fuel gauge
 i2c_master_dev_handle_t DS3231M_dev = NULL; //RTC
+i2c_master_dev_handle_t TCA8418_dev = NULL; //Controlador de teclado matricial
 
 // Estructuras de configuracion
 bq25628_config_t charger_config;
@@ -73,6 +75,7 @@ void app_main(void){
     ESP_ERROR_CHECK(bq25628_init(I2C1_Handler, &charger_config));
     ESP_ERROR_CHECK(BQ27441_initialization (I2C1_Handler, &BQ27441_driver_dev, &fuel_gauge_config));
     ESP_ERROR_CHECK(ds3231m_init(I2C1_Handler));
+    ESP_ERROR_CHECK(tca8418_init(I2C1_Handler));
 
    
     /*Configurar parámetros operativos del RTC DS3231M */
@@ -100,11 +103,25 @@ void app_main(void){
         }
     }
 
+    //Configurar matriz física de la RTU: 2 filas (ROW0..1) x 6 columnas (COL0..5)
+    tca8418_config_t keypad_cfg = {
+        .rows_mask           = 0x03,    /* 0b00000011 -> Habilita ROW0 y ROW1 en modo matriz */
+        .cols_mask           = 0x003F,  /* 0b0000111111 -> Habilita COL0 a COL5 en modo matriz */
+        .enable_key_int      = true,    /* Genera interrupción física BUT_INT al presionar/soltar */
+        .enable_gpi_int      = false,   /* No se usan interrupciones en pines auxiliares */
+        .enable_overflow_int = true,    /* Avisa si la FIFO de 10 teclas llega a desbordar */
+        .int_deassert_50us   = true,    /* Pulso de 50 us si quedan teclas pendientes (ideal flanco) */
+        .overflow_wrap       = true,    /* Si se llena la FIFO, conserva las 10 más recientes */
+        .enable_debounce     = true,    /* Activa filtro antirrebote por hardware */
+        .enable_pullups      = true,    /* Activa pull-ups internos (~100 kOhm) en entradas */
+    };
+    ESP_ERROR_CHECK(tca8418_config(&keypad_cfg));
+
     // Inicializar manejador de interrupciones y asignar GPIOs
     ESP_ERROR_CHECK(irq_manager_init());
     ESP_ERROR_CHECK(irq_manager_register_gpio(CHARGER_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_CHARGER_INT));
     ESP_ERROR_CHECK(irq_manager_register_gpio(FUELG_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_FUEL_GAUGE_INT));
-
+    ESP_ERROR_CHECK(irq_manager_register_gpio(TECLADO_INT_PIN, GPIO_INTR_NEGEDGE, GPIO_FLOATING, IRQ_SRC_BUTTON_INT));
 
     ESP_LOGI(TAG, "=== BAIGORRIA/MASMAN ===\n");
 
