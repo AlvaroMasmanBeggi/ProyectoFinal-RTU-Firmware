@@ -33,6 +33,7 @@ extern "C" {
 
 
 extern SemaphoreHandle_t I2C1_Mutex;
+extern i2c_master_dev_handle_t DS3231M_dev;
 
 
 /* =========================================================================

@@ -14,7 +14,8 @@
 #define DS3231M_I2C_TIMEOUT_MS      100
 
 /* Handle global del dispositivo DS3231M registrado en el bus I2C1 */
-i2c_master_dev_handle_t DS3231M_dev = NULL;
+//i2c_master_dev_handle_t DS3231M_dev = NULL; esta configuracion se movio a app_main.c para que sea visible desde otras tareas y no solo desde el driver del RTC
+
 
 /* =========================================================================
  * Funciones auxiliares internas (Mutex, I2C y conversión BCD)
