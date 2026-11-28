@@ -16,6 +16,7 @@
 
 #include "BQ25628.h"
 #include "bq27441.h"
+#include "TPL0401B.h"
 
 static const char *TAG = "RTU_MAIN";
 
@@ -26,6 +27,7 @@ SemaphoreHandle_t I2C1_Mutex = NULL;
 i2c_master_dev_handle_t BQ25628_dev = NULL;
 i2c_master_dev_handle_t BQ27441_bus_handler = NULL;
 BQ27441_ctx_t BQ27441_driver_dev;
+i2c_master_dev_handle_t TPL0401_dev;
 
 // Estructuras de configuracion
 bq25628_config_t charger_config;
